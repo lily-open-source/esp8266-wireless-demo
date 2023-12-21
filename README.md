@@ -5,8 +5,8 @@
 - [Overview](#overview)
 - [Components Used](#components-used)
 - [Wiring](#wiring)
-  - [Sender (1st ESP8266 - Access Point)](#sender-1st-esp8266---access-point)
-  - [Receiver (2nd ESP8266 - Client)](#receiver-2nd-esp8266---client)
+  - [Sender (1st ESP8266 - Access Point)](#sender-1st-esp8266---access-pointserver)
+  - [Receiver (2nd ESP8266 - Client)](#receiver-2nd-esp8266---clientclient)
 - [How to Use](#how-to-use)
 - [Configuration](#configuration)
 - [Flowchart](#flowchart)
@@ -34,7 +34,7 @@ This project showcases wireless communication between two ESP8266 modules, featu
 
 ## Wiring
 
-### Sender (1st ESP8266 - Access Point)
+### Sender (1st ESP8266 - Access Point)/[server](code/example/server.md)
 
 - Connect ultrasonic sensors (A, B, C, D) to the 74HC4067 multiplexer.
 - Connect buttons (Button 1, Button 2, Button 3) to digital pins.
@@ -42,7 +42,7 @@ This project showcases wireless communication between two ESP8266 modules, featu
 - Connect a red LED to indicate operation.
 - Connect a green LED to indicate standby.
 
-### Receiver (2nd ESP8266 - Client)
+### Receiver (2nd ESP8266 - Client)/[client](code/example/client.md)
 
 - Connect a red LED to indicate operation.
 - Connect a green LED to indicate standby.
