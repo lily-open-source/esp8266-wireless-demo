@@ -1,18 +1,21 @@
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
 
-const char* ssid = "ESP8266-AP";   // SSID for the AP
+const char* ssid = "ESP32-AP";   // SSID for the AP
 const char* password = "password";  // Password for the AP
-const char* server_ip = "192.168.4.1";  // IP address of the AP (1st ESP8266)
+const char* server_ip = "192.168.4.1";  // IP address of the AP (1st ESP32)
 
 WiFiClient client;
 
-const int redLedPin = D9;    // Red LED pin
-const int greenLedPin = D10;  // Green LED pin
+const int redLedPin = 33;    // Red LED pin
+const int greenLedPin = 34;  // Green LED pin
+
+WiFiServer server(80); // 80 is the port number
 
 void setup() {
   Serial.begin(115200);
   
-  // Connect the ESP8266 to the Access Point
+  // Connect the ESP32 to the Access Point
   WiFi.begin(ssid, password);
   
   while (WiFi.status() != WL_CONNECTED) {
@@ -20,9 +23,6 @@ void setup() {
     Serial.println("Connecting to WiFi...");
   }
   Serial.println("Connected to WiFi");
-
-  // Set up a server to listen for commands
-  server.begin();
 
   // Set up the LED pins
   pinMode(redLedPin, OUTPUT);
@@ -47,7 +47,8 @@ void loop() {
         Serial.println(data);
 
         // Respond with "ok" to confirm data reception
-        client.println("ok");
+        sendConfirmation();
+
         // Turn off the green LED and turn on the red LED to indicate standby
         digitalWrite(greenLedPin, LOW);
         digitalWrite(redLedPin, HIGH);
@@ -76,3 +77,23 @@ int processData(int command) {
 
   return data;
 }
+
+void sendConfirmation() {
+  HTTPClient http;
+
+  // Use the IP address of the first ESP32
+  String url = "http://" + String(server_ip) + "/confirmation";
+
+  http.begin(url);
+  int httpCode = http.GET();
+
+  // Check for a successful HTTP GET request
+  if (httpCode > 0) {
+    Serial.println("Confirmation sent successfully");
+  } else {
+    Serial.println("Error sending confirmation");
+  }
+
+  http.end();
+}
+

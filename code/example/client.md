@@ -45,47 +45,16 @@ Feel free to contribute by submitting issues or pull requests.
 ## Flowchart
 
 ```mermaid
-graph LR
-
-  subgraph Setup
-    A(Initialize)
-    B(Set WiFi Credentials)
-    C(Power On)
-    A --> B
-    B --> C
-  end
-
-  subgraph Connect_to_Wifi
-    D(Wait for Connection)
-    E{Connected?}
-    F(Listen for Commands)
-    G(Receive Command)
-    H(Process Command)
-    I(Respond with ok)
-    J{Command Received?}
-    K(Turn off Green LED)
-    L(Turn on Red LED)
-    D --> E
-    E -->|Yes| F
-    E -->|No| D
-    F --> J
-    J -->|Yes| G
-    J -->|No| F
-    G --> H
-    H --> I
-    I --> K
-    K --> L
-    L --> F
-  end
-
-  subgraph Process_Data
-    M(Set Data)
-    N(Return Data)
-    H --> M
-    M --> N
-  end
-
-  style Setup fill:#211717,stroke:#211717,stroke-width:2px;
-  style Connect_to_Wifi fill:#A34A28,stroke:#A34A28,stroke-width:2px;
-  style Process_Data fill:#F58B54,stroke:#F58B54,stroke-width:2px;
+graph TD
+  A[Start] --> B[Connect to Access Point]
+  B -- Success --> C[Initialize LEDs]
+  C --> D[Wait for Client Connection]
+  D -- Connection Established --> E[Turn On Green LED]
+  E --> F[Receive Command]
+  F --> G[Process Command]
+  G --> H[Send Confirmation]
+  H --> I[Turn Off Green LED]
+  I --> J[Turn On Red LED]
+  J --> K[Stop Client Connection]
+  K --> D
 ```

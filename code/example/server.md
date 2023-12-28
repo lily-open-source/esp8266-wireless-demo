@@ -44,57 +44,25 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ```mermaid
 graph TD
-  style Setup fill:#451952,stroke:#451952,stroke-width:2px;
-  style Connect_to_WiFi fill:#872341,stroke:#872341,stroke-width:2px;
-  style HTTP_Communication fill:#BE3144,stroke:#BE3144,stroke-width:2px;
-  style Operation_Loop fill:#F05941,stroke:#F05941,stroke-width:2px;
-
-  subgraph Setup
-    A(Initialize)
-    B(Set WiFi Credentials)
-    C(Power On)
-    A --> B
-    B --> C
-  end
-
-  subgraph Connect_to_WiFi
-    D(Set up Access Point)
-    E(Display IP Address)
-    F(Set up Multiplexer Pins)
-    G(Set up Button and Switch Pins)
-    H(Set up LED Pins)
-    I(Turn on Green LED)
-    D --> E
-    E --> F
-    F --> G
-    G --> H
-    H --> I
-  end
-
-  subgraph Operation_Loop
-    J(Get Distance from Sensors)
-    K(Read Button and Switch States)
-    L(Determine Command)
-    M(Turn on Red LED)
-    N(Send Command)
-    O(Go to Sleep)
-    P(Turn off Red LED and Turn on Green LED)
-    Q(Delay)
-    J --> K
-    K --> L
-    L --> M
-    M --> N
-    N --> O
-    O --> P
-    P --> Q
-    Q --> J
-  end
-
-  subgraph HTTP_Communication
-    R(Send HTTP GET Request)
-    S(Check HTTP Response)
-    T(Confirmation Received?)
-    R --> S
-    S --> T
-  end
+  A[Start] --> B[Set Up Access Point]
+  B --> C[Initialize Pins]
+  C --> D[Initialize LEDs]
+  D --> E[Turn On Green LED]
+  E --> F[Check Master Distance]
+  F -- Distance <= 10 cm --> G[Initialize Command]
+  F -- Distance > 10 cm or Timeout --> H[Reset Timer]
+  H --> E
+  G --> I[Initialize Sensor Status]
+  I --> J[Loop Through Sensors]
+  J --> K[Check Sensor Distance]
+  K -- Distance <= 10 cm --> L[Set Sensor Status]
+  K -- Distance > 10 cm --> M[Set Sensor Status]
+  J --> N[Loop Through Sensor Pairs]
+  N -- A + B > 1 --> O[Set Command]
+  N -- A + B <= 1 --> P[No Command]
+  O --> Q[Turn On Red LED]
+  Q --> R[Send Command with Retry]
+  R -- Success --> S[Go to Sleep]
+  R -- Retry Limit Reached --> T[Re-read Master Status]
+  T --> F
 ```

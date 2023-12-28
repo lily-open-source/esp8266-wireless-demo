@@ -1,45 +1,50 @@
-#include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
 
-const char* ssid = "ESP8266-AP";   // SSID for the AP
+const char* ssid = "ESP32-AP";   // SSID for the AP
 const char* password = "password";  // Password for the AP
-const char* server_ip = "192.168.4.2";  // IP address of the client ESP8266
+const char* server_ip = "192.168.4.1";  // IP address of the AP (1st ESP32)
 
-const int multiplexerS0 = D1;  // Multiplexer S0 pin
-const int multiplexerS1 = D2;  // Multiplexer S1 pin
-const int multiplexerS2 = D3;  // Multiplexer S2 pin
-const int multiplexerS3 = D4;  // Multiplexer S3 pin
-const int multiplexerSignal = A0;  // Multiplexer signal pin
+const int numSensors = 12;  // Total number of sensors including the master
 
-const int button1Pin = D5;  // Button 1 pin
-const int button2Pin = D6;  // Button 2 pin
-const int button3Pin = D7;  // Button 3 pin
-const int switchPin = D8;   // Switch pin
+const int triggerPins[numSensors] = {2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};
+const int echoPins[numSensors] = {15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32};
 
-const int redLedPin = D9;    // Red LED pin
-const int greenLedPin = D10;  // Green LED pin
+const char sensorNames[numSensors] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'};
+
+const int masterTriggerPin = 14;  // Master trigger pin
+const int masterEchoPin = 32;    // Master echo pin
+
+const int redLedPin = 33;    // Red LED pin
+const int greenLedPin = 34;  // Green LED pin
+
+WiFiServer server(80); // 80 is the port number
 
 void setup() {
   Serial.begin(115200);
-  
-  // Set up the ESP8266 as an Access Point
+
+  // Set up the ESP32 as an Access Point
   WiFi.softAP(ssid, password);
 
   Serial.println("Access Point Started");
   Serial.print("IP Address: ");
   Serial.println(WiFi.softAPIP());
 
-  // Set up the multiplexer pins
-  pinMode(multiplexerS0, OUTPUT);
-  pinMode(multiplexerS1, OUTPUT);
-  pinMode(multiplexerS2, OUTPUT);
-  pinMode(multiplexerS3, OUTPUT);
+  // Set up the trigger pins as OUTPUT
+  for (int i = 0; i < numSensors; i++) {
+    pinMode(triggerPins[i], OUTPUT);
+  }
 
-  // Set up the button and switch pins
-  pinMode(button1Pin, INPUT_PULLUP);
-  pinMode(button2Pin, INPUT_PULLUP);
-  pinMode(button3Pin, INPUT_PULLUP);
-  pinMode(switchPin, INPUT_PULLUP);
+  // Set up the echo pins as INPUT
+  for (int i = 0; i < numSensors; i++) {
+    pinMode(echoPins[i], INPUT);
+  }
+
+  // Set up the master trigger pin as OUTPUT
+  pinMode(masterTriggerPin, OUTPUT);
+
+  // Set up the master echo pin as INPUT
+  pinMode(masterEchoPin, INPUT);
 
   // Set up the LED pins
   pinMode(redLedPin, OUTPUT);
@@ -50,92 +55,99 @@ void setup() {
 }
 
 void loop() {
-  int sensorA = getDistance(0) <= 15 ? 1 : 0;
-  int sensorB = getDistance(1) <= 15 ? 1 : 0;
-  int sensorC = getDistance(2) <= 15 ? 1 : 0;
-  int sensorD = getDistance(3) <= 15 ? 1 : 0;
+  // Check master distance only once
+  int masterDistance = getDistance(masterTriggerPin, masterEchoPin);
 
-  int button1State = digitalRead(button1Pin);
-  int button2State = digitalRead(button2Pin);
-  int button3State = digitalRead(button3Pin);
-  int switchState = digitalRead(switchPin);
+  // If master distance is less than or equal to 10cm for around 15 seconds
+  if (masterDistance <= 10 && millis() < 15000) {
+    int command = 0;
 
-  int command = 0;
+    // Array to store the status of each sensor (1 if distance <= 10cm, 0 otherwise)
+    int sensorStatus[numSensors] = {0};
 
-  // Check the state of the switch to determine whether to use sensors or buttons
-  if (switchState == LOW) {  // LOW indicates that the switch is ON
-    // Determine the command based on button states
-    if (button1State == LOW) {
-      command = 1;
-    } else if (button2State == LOW) {
-      command = 2;
-    } else if (button3State == LOW) {
-      command = 3;
+    // Loop through all sensors
+    for (int i = 0; i < numSensors; i++) {
+      int currentDistance = getDistance(triggerPins[i], echoPins[i]);
+
+      // Assign a value of 1 to each sensor if its distance is less than or equal to 10 cm
+      sensorStatus[i] = (currentDistance <= 10) ? 1 : 0;
     }
+
+    // Loop through all sensor pairs (A + B, A + C, ..., A + L)
+    for (int i = 1; i < numSensors; i++) {
+      if (sensorStatus[0] + sensorStatus[i] > 1) {
+        command = i + 1;  // Increment by 1 to match your sensor indexing
+        break;
+      }
+    }
+
+    // Turn on the red LED to indicate operation
+    digitalWrite(redLedPin, HIGH);
+
+    // Send the command to the second ESP32 with retry mechanism
+    for (int retry = 0; retry < 5; retry++) {
+      if (sendCommandWithRetry(command)) {
+        Serial.println("Going to sleep");
+        // Turn off the red LED and turn on the green LED to indicate standby
+        digitalWrite(redLedPin, LOW);
+        digitalWrite(greenLedPin, HIGH);
+        ESP.deepSleep(0);  // Sleep indefinitely
+      } else {
+        Serial.println("Retrying...");
+        delay(1000);  // Wait for 1 second before retrying
+      }
+    }
+
+    // If all retries failed, re-read the master status
+    Serial.println("All retries failed. Re-reading master status...");
   } else {
-    // Determine the command based on ultrasonic sensor readings
-    if (sensorA - sensorB > 0) {
-      command = 1;
-    } else if (sensorA - sensorC > 0) {
-      command = 2;
-    } else if (sensorA - sensorD > 0) {
-      command = 3;
-    }
-  }
-
-  // Turn on the red LED to indicate operation
-  digitalWrite(redLedPin, HIGH);
-  // Send the command to the second ESP8266
-  if (sendCommand(command)) {
-    Serial.println("Going to sleep");
-    // Turn off the red LED and turn on the green LED to indicate standby
+    // Reset the timer and turn off the red LED
     digitalWrite(redLedPin, LOW);
-    digitalWrite(greenLedPin, HIGH);
-    ESP.deepSleep(0);  // Sleep indefinitely
+    // Add any additional logic if needed
   }
 
-  delay(5000); // Adjust delay as needed
+  delay(1000); // Adjust delay as needed
 }
 
-bool sendCommand(int command) {
+bool sendCommandWithRetry(int command) {
   HTTPClient http;
 
-  // Use the IP address of the client ESP8266
+  // Use the IP address of the client ESP32
   String url = "http://" + String(server_ip) + "/process_command?cmd=" + String(command);
 
-  http.begin(url);
-  int httpCode = http.GET();
+  // Retry for a maximum of 4 seconds
+  unsigned long startMillis = millis();
+  while (millis() - startMillis < 4000) {
+    http.begin(url);
+    int httpCode = http.GET();
   
-  if (httpCode > 0) {
-    Serial.println("Command sent successfully");
+    if (httpCode > 0) {
+      Serial.println("Command sent successfully");
 
-    // Check for "ok" response from the second ESP8266
-    if (http.getString() == "ok") {
-      Serial.println("Confirmation received, going to sleep");
-      return true;
+      // Check for "ok" response from the second ESP32
+      if (http.getString() == "ok") {
+        http.end();
+        return true;
+      } else {
+        Serial.println("Error: Invalid confirmation received");
+      }
     } else {
-      Serial.println("Error: No confirmation received");
-      return false;
+      Serial.println("Error sending command");
     }
-  } else {
-    Serial.println("Error sending command");
-    return false;
+
+    http.end();
+    delay(500);  // Wait for 500 milliseconds before retrying
   }
-  
-  http.end();
+
+  return false;  // Retry limit reached
 }
 
-long getDistance(int channel) {
-  // Select the multiplexer channel
-  digitalWrite(multiplexerS0, channel & 0x01);
-  digitalWrite(multiplexerS1, (channel >> 1) & 0x01);
-  digitalWrite(multiplexerS2, (channel >> 2) & 0x01);
-  digitalWrite(multiplexerS3, (channel >> 3) & 0x01);
-
-  // Measure distance using the HC-SR04 ultrasonic sensor
-  digitalWrite(multiplexerSignal, HIGH);
+long getDistance(int triggerPin, int echoPin) {
+  digitalWrite(triggerPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(triggerPin, HIGH);
   delayMicroseconds(10);
-  digitalWrite(multiplexerSignal, LOW);
-  
-  return pulseIn(multiplexerSignal, HIGH) / 58.2;  // Convert pulse duration to distance in cm
+  digitalWrite(triggerPin, LOW);
+
+  return pulseIn(echoPin, HIGH) / 58.2;  // Convert pulse duration to distance in cm
 }
